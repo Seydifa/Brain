@@ -19,7 +19,7 @@ from datetime import datetime, UTC
 
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
-from config import get_llm, get_embeddings
+from core.config import get_llm, get_embeddings
 
 # ---------------------------------------------------------------------------
 # Internals

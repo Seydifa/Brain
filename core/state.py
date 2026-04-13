@@ -31,6 +31,7 @@ from langgraph.graph.message import add_messages
 MEMORY_SCORE_THRESHOLD = 0.65  # min cosine similarity to count as "known"
 MAX_SEARCH_RETRIES = 3  # max search + validation loops per turn
 MAX_QA_ATTEMPTS = 2  # max QA draft + orchestrator validation loops
+MAX_ACTION_RETRIES = 5  # max action retry attempts (scratch pad loop)
 
 
 # ---------------------------------------------------------------------------
@@ -49,8 +50,16 @@ class BrainState(TypedDict):
     direction_result: dict
 
     # ---- Action Agent output (written when needs_action=True) --------------
-    # Schema: {status, action_type, summary, facts_verified, stdout, stderr, error}
+    # Schema: {status, action_type, summary, facts_verified, stdout, stderr, error,
+    #          solution_code, solution_desc}
     action_result: dict
+
+    # ---- Action scratch pad (short-term debug memory) ----------------------
+    # Append-only list of previous attempt records.
+    # Each entry: {attempt, code, stdout, stderr, error, diagnosis}
+    # Cleared at the start of each new turn by the graph entry point.
+    action_scratch: Annotated[list[dict], add]
+    action_attempts: int
 
     # ---- Memory Agent output ------------------------------------------------
     # The full oriented context — the ONLY state other agents should trust.

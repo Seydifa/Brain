@@ -7,7 +7,7 @@ directly from langchain_google_genai.
 
 Usage
 -----
-  from config import get_llm, get_embeddings, CFG
+  from core.config import get_llm, get_embeddings, CFG
 
 Environment variables (take precedence over defaults):
   BRAIN_BACKEND         'gemini' | 'ollama'            (default: 'gemini')

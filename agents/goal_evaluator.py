@@ -18,9 +18,9 @@ import re
 
 from langchain_core.messages import HumanMessage
 
-from config import get_llm
+from core.config import get_llm
 from core.state import BrainState
-from prompts import GOAL_EVALUATOR_SYSTEM
+from core.prompts import GOAL_EVALUATOR_SYSTEM
 
 _llm = get_llm(temperature=0.3)
 

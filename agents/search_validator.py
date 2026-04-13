@@ -15,9 +15,9 @@ Decision:
 import re
 from langchain_core.messages import HumanMessage
 
-from config import get_llm
+from core.config import get_llm
 from core.state import BrainState, MAX_SEARCH_RETRIES
-from prompts import SEARCH_VALIDATOR_SYSTEM
+from core.prompts import SEARCH_VALIDATOR_SYSTEM
 
 
 _llm = get_llm(temperature=0)

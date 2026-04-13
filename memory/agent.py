@@ -32,7 +32,7 @@ oriented_context schema
 import re
 import json
 from langchain_core.messages import HumanMessage
-from config import get_llm
+from core.config import get_llm
 
 from memory.episodes import (
     make_episode_id,
@@ -42,7 +42,7 @@ from memory.episodes import (
 )
 from memory.awareness import assess
 from memory.store import store
-from prompts import MEMORY_CLASSIFY_SYSTEM
+from core.prompts import MEMORY_CLASSIFY_SYSTEM
 
 
 _llm = get_llm(temperature=0)

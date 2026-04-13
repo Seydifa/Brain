@@ -1,27 +1,31 @@
 """
-Action Agent — code executor and environment checker.
+Action Agent — code executor and environment checker with scratch-pad retry.
 
 Runs ONLY when direction_agent sets needs_action=True in direction_result.
 It is a LangGraph ReAct agent with one privileged tool: execute_python.
 
-Workflow
---------
-  direction → action (conditional, needs_action=True) → memory_classify → …
-  direction → memory_classify (needs_action=False, skip action entirely)
-
-The action_node writes action_result to state.
-QA Agent reads action_result.summary and includes it in the response.
+Retry protocol (scratch pad = short-term debug memory)
+------------------------------------------------------
+On first call, action_scratch is empty.
+On failure: the node appends {attempt, code, stdout, stderr, error, diagnosis}
+to action_scratch and increments action_attempts.  The graph routes back
+to this node; the scratch pad is included in the LLM prompt so it never
+repeats the same mistake.
+On success: action_result includes solution_code and solution_desc for
+long-term storage by the store_solution node downstream.
 
 action_result schema
 --------------------
 {
-    "status":          str,         # "success" | "partial" | "failed" | "skipped"
+    "status":          str,         # "success" | "partial" | "failed"
     "action_type":     str,         # from direction_result
     "summary":         str,         # human-readable findings
     "facts_verified":  list[dict],  # [{fact, verdict, reason}, …]
     "stdout":          str,         # raw captured stdout
     "stderr":          str,         # raw captured stderr (truncated)
     "error":           str,         # exception message if execution failed
+    "solution_code":   str,         # final working code (only on success)
+    "solution_desc":   str,         # one-line description of the solution
 }
 """
 
@@ -39,9 +43,9 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 
-from config import get_llm
+from core.config import get_llm
 from core.state import BrainState
-from prompts import ACTION_AGENT_SYSTEM
+from core.prompts import ACTION_AGENT_SYSTEM
 
 
 _llm = get_llm(temperature=0)
@@ -129,6 +133,33 @@ _agent = create_react_agent(
 
 
 # ---------------------------------------------------------------------------
+# Scratch pad formatter
+# ---------------------------------------------------------------------------
+
+
+def _format_scratch_pad(scratch: list[dict]) -> str:
+    """Format previous attempts for the LLM prompt."""
+    if not scratch:
+        return ""
+    lines = ["=== SCRATCH PAD (previous attempts) ==="]
+    for entry in scratch:
+        lines.append(f"\n--- Attempt {entry.get('attempt', '?')} ---")
+        if entry.get("code"):
+            lines.append(f"Code:\n```python\n{entry['code']}\n```")
+        if entry.get("stdout"):
+            lines.append(f"Stdout: {entry['stdout'][:500]}")
+        if entry.get("stderr"):
+            lines.append(f"Stderr: {entry['stderr'][:500]}")
+        if entry.get("error"):
+            lines.append(f"Error: {entry['error'][:300]}")
+        if entry.get("diagnosis"):
+            lines.append(f"Diagnosis: {entry['diagnosis']}")
+    lines.append("\n=== END SCRATCH PAD ===")
+    lines.append("You MUST fix the issues above. Do NOT repeat the same code.")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Result parser
 # ---------------------------------------------------------------------------
 
@@ -142,12 +173,37 @@ def _parse_action_result(
     status_m = re.search(r"STATUS:\s*(success|partial|failed)", raw, re.IGNORECASE)
     status = status_m.group(1).lower() if status_m else "partial"
 
+    # Extract diagnosis
+    diag_m = re.search(
+        r"DIAGNOSIS:\s*\n?(.*?)(?=CODE:|RESULTS:|FACTS_VERIFIED:|$)",
+        raw,
+        re.DOTALL | re.IGNORECASE,
+    )
+    diagnosis = diag_m.group(1).strip() if diag_m else ""
+
+    # Extract code block
+    code_m = re.search(
+        r"CODE:\s*\n```(?:python)?\n(.*?)```", raw, re.DOTALL | re.IGNORECASE
+    )
+    code_block = code_m.group(1).strip() if code_m else ""
+
     results_m = re.search(
-        r"RESULTS:\s*\n(.*?)(?=FACTS_VERIFIED:|$)", raw, re.DOTALL | re.IGNORECASE
+        r"RESULTS:\s*\n(.*?)(?=FACTS_VERIFIED:|SOLUTION:|$)",
+        raw,
+        re.DOTALL | re.IGNORECASE,
     )
     summary = results_m.group(1).strip() if results_m else raw[:600]
 
-    facts_m = re.search(r"FACTS_VERIFIED:\s*\n(.*?)$", raw, re.DOTALL | re.IGNORECASE)
+    # Extract solution (only on success)
+    solution_m = re.search(r"SOLUTION:\s*\n(.*?)$", raw, re.DOTALL | re.IGNORECASE)
+    solution_text = solution_m.group(1).strip() if solution_m else ""
+    # Extract code from solution if it contains a code block
+    sol_code_m = re.search(r"```(?:python)?\n(.*?)```", solution_text, re.DOTALL)
+    solution_code = sol_code_m.group(1).strip() if sol_code_m else solution_text
+
+    facts_m = re.search(
+        r"FACTS_VERIFIED:\s*\n(.*?)(?=SOLUTION:|$)", raw, re.DOTALL | re.IGNORECASE
+    )
     facts_text = facts_m.group(1).strip() if facts_m else ""
 
     facts_verified = []
@@ -179,6 +235,10 @@ def _parse_action_result(
         "stdout": "",
         "stderr": "",
         "error": "",
+        "solution_code": solution_code if status == "success" else "",
+        "solution_desc": "",
+        "diagnosis": diagnosis,
+        "code": code_block,
     }
 
 
@@ -189,39 +249,50 @@ def _parse_action_result(
 
 def action_node(state: BrainState, config: RunnableConfig) -> dict:
     """
-    Execute code / validate claims / check environment as requested.
-    Only reached when direction_result.needs_action=True.
-    Writes action_result to state.
+    Execute code / validate claims / check environment.
+
+    On each call:
+      - Reads scratch_pad from state (previous failed attempts).
+      - Builds prompt with scratch context so LLM learns from errors.
+      - On failure: appends attempt to action_scratch for next retry.
+      - On success: writes solution_code + solution_desc for long-term storage.
+
+    The graph routes back here on failure (up to MAX_ACTION_RETRIES).
     """
     direction = state.get("direction_result", {})
     action_type = direction.get("action_type", "none")
     actionable_facts = direction.get("actionable_facts", [])
     goal = state["goal"]
+    scratch = state.get("action_scratch", [])
+    attempt = state.get("action_attempts", 0) + 1
 
     # Extract any code blocks from the goal
     code_blocks = re.findall(r"```(?:python)?\n(.*?)```", goal, re.DOTALL)
     code_context = "\n\n".join(code_blocks) if code_blocks else ""
 
-    prompt = (
-        f"action_type: {action_type}\n"
-        f"goal: {goal}\n"
-        f"actionable_facts: {actionable_facts}\n"
-        f"code_context:\n{code_context}"
-        if code_context
-        else f"action_type: {action_type}\n"
-        f"goal: {goal}\n"
-        f"actionable_facts: {actionable_facts}"
-    )
+    # Build prompt
+    parts = [
+        f"action_type: {action_type}",
+        f"goal: {goal}",
+        f"actionable_facts: {actionable_facts}",
+        f"attempt: {attempt}",
+    ]
+    if code_context:
+        parts.append(f"code_context:\n{code_context}")
+
+    scratch_text = _format_scratch_pad(scratch)
+    if scratch_text:
+        parts.append(scratch_text)
+
+    prompt = "\n".join(parts)
 
     raw_output = ""
     error_msg = ""
     try:
-        # create_react_agent expects {"messages": [...]}
         agent_result = _agent.invoke(
             {"messages": [HumanMessage(content=prompt)]},
             config=config,
         )
-        # Extract the last AI message content
         for msg in reversed(agent_result.get("messages", [])):
             if hasattr(msg, "content") and msg.content:
                 raw_output = msg.content
@@ -231,12 +302,30 @@ def action_node(state: BrainState, config: RunnableConfig) -> dict:
         raw_output = f"Agent error: {error_msg}"
 
     result = _parse_action_result(raw_output, action_type, actionable_facts)
-    result["error"] = error_msg
+    result["error"] = error_msg or result.get("error", "")
+
+    # Build scratch entry for this attempt
+    scratch_entry = {
+        "attempt": attempt,
+        "code": result.get("code", ""),
+        "stdout": result.get("stdout", ""),
+        "stderr": result.get("stderr", ""),
+        "error": result["error"],
+        "diagnosis": result.get("diagnosis", ""),
+    }
+
+    # Generate solution description on success
+    if result["status"] == "success" and result.get("solution_code"):
+        result["solution_desc"] = (
+            f"Solution for: {goal[:100]}. Action: {action_type}. Attempts: {attempt}."
+        )
 
     return {
         "action_result": result,
+        "action_scratch": [scratch_entry],
+        "action_attempts": attempt,
         "reasoning_trace": [
-            f"action: type={action_type} | status={result['status']} | "
-            f"facts={len(result['facts_verified'])}"
+            f"action: attempt={attempt} | type={action_type} | "
+            f"status={result['status']} | facts={len(result['facts_verified'])}"
         ],
     }

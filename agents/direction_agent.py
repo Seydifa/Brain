@@ -48,10 +48,10 @@ import re
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 
-from config import get_llm, get_embeddings
+from core.config import get_llm, get_embeddings
 from core.state import BrainState
 from memory.episodes import get_recent
-from prompts import DIRECTION_SYSTEM, ACTION_DETECT_SYSTEM
+from core.prompts import DIRECTION_SYSTEM, ACTION_DETECT_SYSTEM
 
 
 # ---------------------------------------------------------------------------

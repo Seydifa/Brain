@@ -19,9 +19,9 @@ from langchain_core.tools import tool
 from langchain_core.messages import AIMessage
 from langgraph.prebuilt import create_react_agent
 
-from config import get_llm
+from core.config import get_llm
 from core.state import BrainState
-from prompts import SEARCH_REACT_SYSTEM
+from core.prompts import SEARCH_REACT_SYSTEM
 
 
 _llm = get_llm(temperature=0)

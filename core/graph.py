@@ -10,7 +10,10 @@ whether the request needs code execution (needs_action).
     needs_action=True  → action      (run code / validate / check_env)
     needs_action=False → memory_classify (skip execution)
 
-  action → memory_classify (always continues after execution)
+  action → _route_after_action:
+    success  → store_solution → memory_classify
+    failed + retries left → action  (retry with scratch pad)
+    exhausted → memory_classify      (give up, pass failure info to QA)
 
 Coverage drives the first routing decision after memory_classify:
 
@@ -35,7 +38,7 @@ QA loop:
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.sqlite import SqliteSaver
 
-from core.state import BrainState, MAX_SEARCH_RETRIES, MAX_QA_ATTEMPTS
+from core.state import BrainState, MAX_SEARCH_RETRIES, MAX_QA_ATTEMPTS, MAX_ACTION_RETRIES
 
 from agents.memory_agent import (
     classify_node,
@@ -50,6 +53,59 @@ from agents.search_validator import validate_search_node
 from agents.qa_agent import qa_draft_node, qa_final_node
 from agents.orchestrator import validate_qa_node
 from agents.goal_evaluator import goal_evaluator_node
+from memory.store import store as memory_store
+
+
+# ---------------------------------------------------------------------------
+# Solution storage node
+# ---------------------------------------------------------------------------
+
+
+def store_solution_node(state: BrainState) -> dict:
+    """
+    Persist a successful action solution into long-term memory.
+
+    Called only when action succeeded — stores the solution code + description
+    so the brain can recall it in future turns when facing similar problems.
+    """
+    result = state.get("action_result", {})
+    goal = state.get("goal", "")
+    solution_code = result.get("solution_code", "")
+    solution_desc = result.get("solution_desc", "")
+    attempts = state.get("action_attempts", 1)
+    scratch = state.get("action_scratch", [])
+
+    # Build a rich solution record for long-term memory
+    parts = [
+        f"Problem: {goal}",
+        f"Action type: {result.get('action_type', '')}",
+        f"Attempts needed: {attempts}",
+    ]
+
+    # Include the fix journey if retries were needed
+    if attempts > 1 and scratch:
+        parts.append("\nDebug journey:")
+        for entry in scratch:
+            if entry.get("diagnosis"):
+                parts.append(
+                    f"  Attempt {entry.get('attempt', '?')}: {entry['diagnosis']}"
+                )
+
+    if solution_code:
+        parts.append(f"\nWorking code:\n```python\n{solution_code}\n```")
+
+    if solution_desc:
+        parts.append(f"\n{solution_desc}")
+
+    raw_text = "\n".join(parts)
+    memory_store(raw_text, source="solution")
+
+    return {
+        "reasoning_trace": [
+            f"solution stored in long-term memory | "
+            f"attempts={attempts} | type={result.get('action_type', '')}"
+        ],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -62,6 +118,29 @@ def _route_after_direction(state: BrainState) -> str:
     direction = state.get("direction_result", {})
     if direction.get("needs_action"):
         return "action"
+    return "classify"
+
+
+def _route_after_action(state: BrainState) -> str:
+    """
+    Route after action execution:
+      success  → store solution in long-term memory
+      failed + retries left → retry action with scratch pad
+      exhausted → continue to memory_classify with failure info
+    """
+    result = state.get("action_result", {})
+    status = result.get("status", "failed")
+    attempts = state.get("action_attempts", 0)
+
+    if status == "success":
+        # Only store if there is actual solution code
+        if result.get("solution_code"):
+            return "store_solution"
+        return "classify"
+
+    if attempts < MAX_ACTION_RETRIES and status in ("failed", "partial"):
+        return "retry"
+
     return "classify"
 
 
@@ -100,6 +179,7 @@ def build_graph(checkpointer=None) -> StateGraph:
     # Register nodes
     g.add_node("direction", direction_node)
     g.add_node("action", action_node)
+    g.add_node("store_solution", store_solution_node)
     g.add_node("memory_classify", classify_node)
     g.add_node("search", search_node)
     g.add_node("search_validator", validate_search_node)
@@ -118,7 +198,18 @@ def build_graph(checkpointer=None) -> StateGraph:
         _route_after_direction,
         {"action": "action", "classify": "memory_classify"},
     )
-    g.add_edge("action", "memory_classify")
+
+    # Action → route: success → store_solution, retry → action, exhausted → classify
+    g.add_conditional_edges(
+        "action",
+        _route_after_action,
+        {
+            "store_solution": "store_solution",
+            "retry": "action",
+            "classify": "memory_classify",
+        },
+    )
+    g.add_edge("store_solution", "memory_classify")
 
     # memory_classify -> qa or search
     g.add_conditional_edges(

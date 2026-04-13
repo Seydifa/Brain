@@ -17,19 +17,20 @@ Two nodes:
 
 from langchain_core.messages import HumanMessage, AIMessage
 
-from config import get_llm
+from core.config import get_llm
 from core.state import BrainState
-from prompts import QA_SYSTEM
+from core.prompts import QA_SYSTEM
 
 
 _llm = get_llm(temperature=0.3)
 
 
-def _format_oriented_context(ctx: dict, action_result: dict | None = None) -> str:
+def _format_oriented_context(
+    ctx: dict, action_result: dict | None = None, action_scratch: list | None = None
+) -> str:
     """
     Build the context block that QA sees.
-    Includes: bridge sentence (topic change), action results, conversation thread, knowledge chunks.
-    Nothing else.
+    Includes: bridge sentence, action results (with retry history), conversation thread, knowledge chunks.
     """
     parts = []
 
@@ -45,6 +46,7 @@ def _format_oriented_context(ctx: dict, action_result: dict | None = None) -> st
         summary = action_result.get("summary", "")
         facts = action_result.get("facts_verified", [])
         status = action_result.get("status", "")
+        solution_code = action_result.get("solution_code", "")
         parts.append(f"=== Action results ({action_type} — {status}) ===")
         if summary:
             parts.append(summary)
@@ -54,6 +56,17 @@ def _format_oriented_context(ctx: dict, action_result: dict | None = None) -> st
                 parts.append(
                     f"  • {f.get('fact', '')} → {f.get('verdict', '?')} — {f.get('reason', '')}"
                 )
+        # Show retry journey if there were multiple attempts
+        if action_scratch and len(action_scratch) > 1:
+            parts.append(f"\nRetry journey ({len(action_scratch)} attempts):")
+            for entry in action_scratch:
+                diag = entry.get("diagnosis", "")
+                if diag:
+                    parts.append(f"  Attempt {entry.get('attempt', '?')}: {diag}")
+        # Show final solution code
+        if solution_code and status == "success":
+            parts.append(f"\nFinal working code:\n```python\n{solution_code}\n```")
+            parts.append("\nSolution stored in long-term memory.")
         parts.append("")
 
     # Conversation thread - only present for follow-up/elaboration turns
@@ -89,7 +102,8 @@ def qa_draft_node(state: BrainState) -> dict:
     ctx = state.get("oriented_context", {})
     feedback = state.get("qa_feedback", "")
     action_result = state.get("action_result") or None
-    context_text = _format_oriented_context(ctx, action_result)
+    action_scratch = state.get("action_scratch") or None
+    context_text = _format_oriented_context(ctx, action_result, action_scratch)
     turn_type = ctx.get("turn_type", "new_topic")
 
     user_content = (
