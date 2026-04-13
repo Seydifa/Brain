@@ -27,21 +27,27 @@ _SYSTEM = SystemMessage(
     content=(
         "The search agent failed to find sufficient information for the user's goal "
         "after multiple attempts.\n"
-        "Generate 2–3 short, targeted clarifying questions that would help narrow "
-        "the search and address the specific gaps identified.\n"
-        "Return ONLY a numbered list of questions, nothing else."
+        "Respond in this exact format (no extra text):\n\n"
+        "WHY: <one sentence explaining what is unclear or missing and why you cannot answer>\n"
+        "1. <clarifying question>\n"
+        "2. <clarifying question>\n"
+        "3. <clarifying question>"
     )
 )
 
 
-def _parse_questions(text: str) -> list[str]:
-    lines = text.strip().split("\n")
+def _parse_response(text: str) -> tuple[str, list[str]]:
+    reason = ""
     questions = []
-    for line in lines:
-        line = re.sub(r"^\d+[\.\)]\s*", "", line).strip()
-        if len(line) > 5:
-            questions.append(line)
-    return questions[:3]
+    for line in text.strip().split("\n"):
+        line = line.strip()
+        if line.upper().startswith("WHY:"):
+            reason = line[4:].strip()
+        else:
+            q = re.sub(r"^\d+[.\)\]]\s*", "", line).strip()
+            if len(q) > 5:
+                questions.append(q)
+    return reason, questions[:3]
 
 
 def goal_evaluator_node(state: BrainState) -> dict:
@@ -65,10 +71,11 @@ def goal_evaluator_node(state: BrainState) -> dict:
         ]
     )
 
-    questions = _parse_questions(resp.content)
+    reason, questions = _parse_response(resp.content)
 
     return {
         "needs_clarification": True,
+        "clarification_reason": reason,
         "clarification_questions": questions,
         "status": "needs_clarification",
     }

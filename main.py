@@ -38,6 +38,7 @@ _EMPTY_STATE = {
     "qa_feedback": "",
     "qa_attempts": 0,
     "needs_clarification": False,
+    "clarification_reason": "",
     "clarification_questions": [],
 }
 
@@ -93,8 +94,11 @@ def run():
 
         # Clarification loop — search exhausted, brain needs more info
         while result.get("needs_clarification"):
+            reason = result.get("clarification_reason", "")
             questions = result.get("clarification_questions", [])
             print("\nBrain needs clarification:")
+            if reason:
+                print(f"  Why: {reason}")
             for q in questions:
                 print(f"  - {q}")
 

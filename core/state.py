@@ -28,21 +28,20 @@ from langgraph.graph.message import add_messages
 # ---------------------------------------------------------------------------
 # Tuning constants
 # ---------------------------------------------------------------------------
-MEMORY_SCORE_THRESHOLD = 0.50   # min cosine similarity to count as "known"
-MAX_SEARCH_RETRIES     = 3      # max search + validation loops per turn
-MAX_QA_ATTEMPTS        = 2      # max QA draft + orchestrator validation loops
+MEMORY_SCORE_THRESHOLD = 0.50  # min cosine similarity to count as "known"
+MAX_SEARCH_RETRIES = 3  # max search + validation loops per turn
+MAX_QA_ATTEMPTS = 2  # max QA draft + orchestrator validation loops
 
 
 # ---------------------------------------------------------------------------
 # Shared state
 # ---------------------------------------------------------------------------
 class BrainState(TypedDict):
-
     # ---- Core ---------------------------------------------------------------
-    goal:     str                                      # user's current request
+    goal: str  # user's current request
     messages: Annotated[list[BaseMessage], add_messages]  # message history
-    response: str                                      # final delivered answer
-    status:   str  # "empty" | "partial" | "found" | "done" | "needs_clarification"
+    response: str  # final delivered answer
+    status: str  # "empty" | "partial" | "found" | "done" | "needs_clarification"
 
     # ---- Memory Agent output ------------------------------------------------
     # The full oriented context — the ONLY state other agents should trust.
@@ -57,16 +56,17 @@ class BrainState(TypedDict):
     reasoning_trace: Annotated[list[str], add]
 
     # ---- Search retry tracking ----------------------------------------------
-    retry_count:     int
-    search_valid:    bool
+    retry_count: int
+    search_valid: bool
     search_feedback: str
 
     # ---- QA draft / orchestrator loop ---------------------------------------
-    qa_draft:    str
+    qa_draft: str
     qa_approved: bool
     qa_feedback: str
     qa_attempts: int
 
     # ---- Clarification flow -------------------------------------------------
-    needs_clarification:    bool
+    needs_clarification: bool
+    clarification_reason: str  # one sentence: why the brain can't proceed
     clarification_questions: list[str]
