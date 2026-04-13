@@ -38,8 +38,10 @@ import textwrap
 import traceback
 from contextlib import redirect_stdout, redirect_stderr
 
-from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
+from langchain_core.runnables import RunnableConfig as _RC
+
+from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 
@@ -289,9 +291,12 @@ def action_node(state: BrainState, config: RunnableConfig) -> dict:
     raw_output = ""
     error_msg = ""
     try:
+        # Use an isolated config so the inner ReAct loop has its own
+        # recursion budget and does not share the outer graph's counter.
+        inner_config = _RC(recursion_limit=20)
         agent_result = _agent.invoke(
             {"messages": [HumanMessage(content=prompt)]},
-            config=config,
+            config=inner_config,
         )
         for msg in reversed(agent_result.get("messages", [])):
             if hasattr(msg, "content") and msg.content:
