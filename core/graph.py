@@ -35,6 +35,7 @@ from agents.memory_agent import (
     update_coverage_node,
     store_episode_node,
 )
+from agents.direction_agent import direction_node
 from agents.search_agent import search_node
 from agents.search_validator import validate_search_node
 from agents.qa_agent import qa_draft_node, qa_final_node
@@ -80,6 +81,7 @@ def build_graph(checkpointer=None) -> StateGraph:
     g = StateGraph(BrainState)
 
     # Register nodes
+    g.add_node("direction", direction_node)
     g.add_node("memory_classify", classify_node)
     g.add_node("search", search_node)
     g.add_node("search_validator", validate_search_node)
@@ -91,8 +93,9 @@ def build_graph(checkpointer=None) -> StateGraph:
     g.add_node("qa_final", qa_final_node)
     g.add_node("memory_store_episode", store_episode_node)
 
-    # Entry point
-    g.set_entry_point("memory_classify")
+    # Entry point → direction → memory_classify
+    g.set_entry_point("direction")
+    g.add_edge("direction", "memory_classify")
 
     # memory_classify -> qa or search
     g.add_conditional_edges(

@@ -119,22 +119,32 @@ def _build_conversation_thread(turn_type: str, parent_id: str | None) -> list[di
 
 
 def classify_and_orient(
-    goal: str, search_feedback: str = "", thread_id: str = ""
+    goal: str,
+    search_feedback: str = "",
+    thread_id: str = "",
+    direction_result: dict | None = None,
 ) -> dict:
     """
     Build the oriented_context for the current turn.
 
     Steps:
-    1. Load recent episodes — filtered to the current thread so Q1 of a
-       fresh thread never inherits continuity from a different conversation
-    2. Use LLM to classify this turn relative to history
-    3. Assess knowledge coverage in the vector store
-    4. Build conversation thread (only if this is a follow-up type turn)
-    5. Register a placeholder episode (so the id exists for downstream reasoning)
-    6. Return full oriented_context
+    1. If direction_result is provided (from direction_node), use its turn_type
+       and parent_id directly — skips LLM classification entirely.
+       Otherwise fall back to local LLM classification (backward compat).
+    2. Assess knowledge coverage in the vector store
+    3. Build conversation thread (only if this is a follow-up type turn)
+    4. Register a placeholder episode (so the id exists for downstream reasoning)
+    5. Return full oriented_context (includes bridge_sentence for topic changes)
     """
-    recent_episodes = get_recent(n=5, thread_id=thread_id)
-    turn_type, parent_id = _classify_turn(goal, recent_episodes)
+    if direction_result:
+        turn_type = direction_result.get("turn_type", "new_topic")
+        parent_id = direction_result.get("parent_id")
+        bridge_sentence = direction_result.get("bridge_sentence", "")
+    else:
+        # Fallback: no direction_node upstream (backward compat or direct use)
+        recent_episodes = get_recent(n=5, thread_id=thread_id)
+        turn_type, parent_id = _classify_turn(goal, recent_episodes)
+        bridge_sentence = ""
 
     coverage_result = assess(goal, search_feedback=search_feedback)
     conversation_thread = _build_conversation_thread(turn_type, parent_id)
@@ -158,6 +168,7 @@ def classify_and_orient(
         "current_episode_id": episode_id,
         "parent_episode_id": parent_id,
         "knowledge_confidence": coverage_result["best_score"],
+        "bridge_sentence": bridge_sentence,
     }
 
 

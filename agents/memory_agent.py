@@ -35,14 +35,21 @@ from memory.store import store
 
 def classify_node(state: BrainState, config: RunnableConfig) -> dict:
     """
-    Entry node for every turn.
+    Entry node for every turn (runs after direction_node).
+    Reads direction_result from state to skip LLM turn classification.
     Produces the oriented_context that all downstream agents will use.
     """
     goal = state["goal"]
     feedback = state.get("search_feedback", "")
     thread_id = (config or {}).get("configurable", {}).get("thread_id", "")
+    direction_result = state.get("direction_result") or None
 
-    oriented = classify_and_orient(goal, search_feedback=feedback, thread_id=thread_id)
+    oriented = classify_and_orient(
+        goal,
+        search_feedback=feedback,
+        thread_id=thread_id,
+        direction_result=direction_result,
+    )
 
     return {
         "oriented_context": oriented,

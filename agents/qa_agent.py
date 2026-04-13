@@ -28,10 +28,16 @@ _llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0.3)
 def _format_oriented_context(ctx: dict) -> str:
     """
     Build the context block that QA sees.
-    Includes: conversation thread (for follow-ups) + relevant knowledge chunks.
+    Includes: bridge sentence (topic change), conversation thread, knowledge chunks.
     Nothing else.
     """
     parts = []
+
+    # Bridge sentence — only present on topic changes (from direction_agent)
+    bridge = ctx.get("bridge_sentence", "")
+    if bridge:
+        parts.append(f"=== Topic transition ===\n{bridge}")
+        parts.append("")
 
     # Conversation thread - only present for follow-up/elaboration turns
     thread = ctx.get("conversation_thread", [])
