@@ -20,7 +20,7 @@ from core.state import BrainState, MAX_QA_ATTEMPTS
 from core.prompts import ORCHESTRATOR_SYSTEM
 
 
-_llm = get_llm(temperature=0)
+_llm = get_llm(temperature=0, role="purpose")
 
 
 def _parse(text: str) -> tuple[int, str]:

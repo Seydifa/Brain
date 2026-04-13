@@ -20,7 +20,7 @@ from core.state import BrainState, MAX_SEARCH_RETRIES
 from core.prompts import SEARCH_VALIDATOR_SYSTEM
 
 
-_llm = get_llm(temperature=0)
+_llm = get_llm(temperature=0, role="purpose")
 
 
 def validate_search_node(state: BrainState) -> dict:

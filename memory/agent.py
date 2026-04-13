@@ -45,7 +45,7 @@ from memory.store import store
 from core.prompts import MEMORY_CLASSIFY_SYSTEM
 
 
-_llm = get_llm(temperature=0)
+_llm = get_llm(temperature=0, role="purpose")
 
 
 # ---------------------------------------------------------------------------

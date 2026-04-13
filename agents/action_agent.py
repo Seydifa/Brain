@@ -48,7 +48,7 @@ from core.state import BrainState
 from core.prompts import ACTION_AGENT_SYSTEM
 
 
-_llm = get_llm(temperature=0)
+_llm = get_llm(temperature=0, role="coder")
 
 # ---------------------------------------------------------------------------
 # Safety guard — block destructive patterns before execution

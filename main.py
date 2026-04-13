@@ -21,6 +21,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from core.config import configure, describe
 from core.graph import get_graph
 
 _EMPTY_STATE = {
@@ -64,6 +65,10 @@ def _print_debug(result: dict) -> None:
 
 
 def run():
+    # Apply any env-based role configuration before building the graph
+    configure()
+    if DEBUG:
+        print(describe())
     graph = get_graph()
     thread_id = str(uuid.uuid4())
     config = {"configurable": {"thread_id": thread_id}}

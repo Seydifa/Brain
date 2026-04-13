@@ -24,7 +24,7 @@ from core.state import BrainState
 from core.prompts import SEARCH_REACT_SYSTEM
 
 
-_llm = get_llm(temperature=0)
+_llm = get_llm(temperature=0, role="coder")
 
 
 # ---------------------------------------------------------------------------

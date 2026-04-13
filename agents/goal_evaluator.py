@@ -22,7 +22,7 @@ from core.config import get_llm
 from core.state import BrainState
 from core.prompts import GOAL_EVALUATOR_SYSTEM
 
-_llm = get_llm(temperature=0.3)
+_llm = get_llm(temperature=0.3, role="purpose")
 
 
 def _parse_response(text: str) -> tuple[str, list[str]]:

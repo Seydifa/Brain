@@ -65,7 +65,7 @@ NEW_TOPIC_THRESHOLD = 0.40
 # Module-level singletons — built from config so backend-agnostic
 # ---------------------------------------------------------------------------
 
-_llm = get_llm(temperature=0)
+_llm = get_llm(temperature=0, role="purpose")
 _embeddings = get_embeddings()
 
 # ---------------------------------------------------------------------------

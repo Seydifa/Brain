@@ -19,7 +19,7 @@ from datetime import datetime, UTC
 
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
-from core.config import get_llm, get_embeddings
+from core.config import get_llm, get_embeddings  # role='purpose' used below
 
 # ---------------------------------------------------------------------------
 # Internals
@@ -36,7 +36,7 @@ _db = Chroma(
     collection_metadata={"hnsw:space": "cosine"},  # cosine → scores in [0, 1]
 )
 
-_llm = get_llm(temperature=0)
+_llm = get_llm(temperature=0, role="purpose")
 
 
 def _describe(text: str) -> str:

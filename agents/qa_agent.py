@@ -22,7 +22,7 @@ from core.state import BrainState
 from core.prompts import QA_SYSTEM
 
 
-_llm = get_llm(temperature=0.3)
+_llm = get_llm(temperature=0.3, role="purpose")
 
 
 def _format_oriented_context(
