@@ -44,8 +44,13 @@ class BrainState(TypedDict):
     status: str  # "empty" | "partial" | "found" | "done" | "needs_clarification"
 
     # ---- Direction Agent output (written before memory_classify) -----------
-    # Schema: {turn_type, parent_id, bridge_sentence, semantic_sim, method}
+    # Schema: {turn_type, parent_id, bridge_sentence, semantic_sim, method,
+    #          needs_action, action_type, actionable_facts}
     direction_result: dict
+
+    # ---- Action Agent output (written when needs_action=True) --------------
+    # Schema: {status, action_type, summary, facts_verified, stdout, stderr, error}
+    action_result: dict
 
     # ---- Memory Agent output ------------------------------------------------
     # The full oriented context — the ONLY state other agents should trust.

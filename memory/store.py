@@ -18,8 +18,8 @@ import hashlib
 from datetime import datetime, UTC
 
 from langchain_chroma import Chroma
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_core.documents import Document
+from config import get_llm, get_embeddings
 
 # ---------------------------------------------------------------------------
 # Internals
@@ -27,7 +27,7 @@ from langchain_core.documents import Document
 
 CHUNK_SIZE = 800  # characters per chunk
 
-_embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
+_embeddings = get_embeddings()
 
 _db = Chroma(
     collection_name="brain",
@@ -36,7 +36,7 @@ _db = Chroma(
     collection_metadata={"hnsw:space": "cosine"},  # cosine → scores in [0, 1]
 )
 
-_llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0)
+_llm = get_llm(temperature=0)
 
 
 def _describe(text: str) -> str:

@@ -31,8 +31,8 @@ oriented_context schema
 
 import re
 import json
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage
+from config import get_llm
 
 from memory.episodes import (
     make_episode_id,
@@ -45,7 +45,7 @@ from memory.store import store
 from prompts import MEMORY_CLASSIFY_SYSTEM
 
 
-_llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0)
+_llm = get_llm(temperature=0)
 
 
 # ---------------------------------------------------------------------------

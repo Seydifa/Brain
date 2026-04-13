@@ -3,8 +3,16 @@ Brain graph — the LangGraph wiring of all agent nodes.
 
 Flow
 ----
-Every turn starts at memory_classify which builds the oriented_context.
-Coverage drives the first routing decision:
+Every turn starts at direction which classifies topic continuity + detects
+whether the request needs code execution (needs_action).
+
+  direction
+    needs_action=True  → action      (run code / validate / check_env)
+    needs_action=False → memory_classify (skip execution)
+
+  action → memory_classify (always continues after execution)
+
+Coverage drives the first routing decision after memory_classify:
 
   full    -> qa_draft  (we already know enough)
   partial -> search    (fill the gaps in weak_topics)
@@ -36,6 +44,7 @@ from agents.memory_agent import (
     store_episode_node,
 )
 from agents.direction_agent import direction_node
+from agents.action_agent import action_node
 from agents.search_agent import search_node
 from agents.search_validator import validate_search_node
 from agents.qa_agent import qa_draft_node, qa_final_node
@@ -46,6 +55,14 @@ from agents.goal_evaluator import goal_evaluator_node
 # ---------------------------------------------------------------------------
 # Routing functions
 # ---------------------------------------------------------------------------
+
+
+def _route_after_direction(state: BrainState) -> str:
+    """Route to action_node if execution is needed, else skip to memory_classify."""
+    direction = state.get("direction_result", {})
+    if direction.get("needs_action"):
+        return "action"
+    return "classify"
 
 
 def _route_after_classify(state: BrainState) -> str:
@@ -82,6 +99,7 @@ def build_graph(checkpointer=None) -> StateGraph:
 
     # Register nodes
     g.add_node("direction", direction_node)
+    g.add_node("action", action_node)
     g.add_node("memory_classify", classify_node)
     g.add_node("search", search_node)
     g.add_node("search_validator", validate_search_node)
@@ -93,9 +111,14 @@ def build_graph(checkpointer=None) -> StateGraph:
     g.add_node("qa_final", qa_final_node)
     g.add_node("memory_store_episode", store_episode_node)
 
-    # Entry point → direction → memory_classify
+    # Entry: direction → action (optional) → memory_classify
     g.set_entry_point("direction")
-    g.add_edge("direction", "memory_classify")
+    g.add_conditional_edges(
+        "direction",
+        _route_after_direction,
+        {"action": "action", "classify": "memory_classify"},
+    )
+    g.add_edge("action", "memory_classify")
 
     # memory_classify -> qa or search
     g.add_conditional_edges(

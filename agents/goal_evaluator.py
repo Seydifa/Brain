@@ -16,13 +16,13 @@ goal (original goal + "User clarification: <answer>").
 
 import re
 
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage
 
+from config import get_llm
 from core.state import BrainState
 from prompts import GOAL_EVALUATOR_SYSTEM
 
-_llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0.3)
+_llm = get_llm(temperature=0.3)
 
 
 def _parse_response(text: str) -> tuple[str, list[str]]:

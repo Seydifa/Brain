@@ -15,20 +15,20 @@ Two nodes:
                   No LLM call - orchestrator already validated the draft.
 """
 
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, AIMessage
 
+from config import get_llm
 from core.state import BrainState
 from prompts import QA_SYSTEM
 
 
-_llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0.3)
+_llm = get_llm(temperature=0.3)
 
 
-def _format_oriented_context(ctx: dict) -> str:
+def _format_oriented_context(ctx: dict, action_result: dict | None = None) -> str:
     """
     Build the context block that QA sees.
-    Includes: bridge sentence (topic change), conversation thread, knowledge chunks.
+    Includes: bridge sentence (topic change), action results, conversation thread, knowledge chunks.
     Nothing else.
     """
     parts = []
@@ -37,6 +37,23 @@ def _format_oriented_context(ctx: dict) -> str:
     bridge = ctx.get("bridge_sentence", "")
     if bridge:
         parts.append(f"=== Topic transition ===\n{bridge}")
+        parts.append("")
+
+    # Action result — present when direction_agent detected needs_action=True
+    if action_result and action_result.get("status") not in (None, "skipped"):
+        action_type = action_result.get("action_type", "")
+        summary = action_result.get("summary", "")
+        facts = action_result.get("facts_verified", [])
+        status = action_result.get("status", "")
+        parts.append(f"=== Action results ({action_type} — {status}) ===")
+        if summary:
+            parts.append(summary)
+        if facts:
+            parts.append("\nVerified facts:")
+            for f in facts:
+                parts.append(
+                    f"  • {f.get('fact', '')} → {f.get('verdict', '?')} — {f.get('reason', '')}"
+                )
         parts.append("")
 
     # Conversation thread - only present for follow-up/elaboration turns
@@ -71,7 +88,8 @@ def qa_draft_node(state: BrainState) -> dict:
     """
     ctx = state.get("oriented_context", {})
     feedback = state.get("qa_feedback", "")
-    context_text = _format_oriented_context(ctx)
+    action_result = state.get("action_result") or None
+    context_text = _format_oriented_context(ctx, action_result)
     turn_type = ctx.get("turn_type", "new_topic")
 
     user_content = (

@@ -13,14 +13,14 @@ Decision:
 """
 
 import re
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage
 
+from config import get_llm
 from core.state import BrainState, MAX_QA_ATTEMPTS
 from prompts import ORCHESTRATOR_SYSTEM
 
 
-_llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0)
+_llm = get_llm(temperature=0)
 
 
 def _parse(text: str) -> tuple[int, str]:

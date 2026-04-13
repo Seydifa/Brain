@@ -15,16 +15,16 @@ The agent returns the combined result as a single message for the
 search_validator to evaluate.
 """
 
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.tools import tool
 from langchain_core.messages import AIMessage
 from langgraph.prebuilt import create_react_agent
 
+from config import get_llm
 from core.state import BrainState
 from prompts import SEARCH_REACT_SYSTEM
 
 
-_llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0)
+_llm = get_llm(temperature=0)
 
 
 # ---------------------------------------------------------------------------
