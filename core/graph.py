@@ -38,7 +38,12 @@ QA loop:
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.sqlite import SqliteSaver
 
-from core.state import BrainState, MAX_SEARCH_RETRIES, MAX_QA_ATTEMPTS, MAX_ACTION_RETRIES
+from core.state import (
+    BrainState,
+    MAX_SEARCH_RETRIES,
+    MAX_QA_ATTEMPTS,
+    MAX_ACTION_RETRIES,
+)
 
 from agents.memory_agent import (
     classify_node,
@@ -156,7 +161,9 @@ def _route_after_search_validation(state: BrainState) -> str:
     if state.get("search_valid"):
         return "store"
     if state.get("retry_count", 0) >= MAX_SEARCH_RETRIES:
-        return "clarify"
+        # Search budget exhausted — fall back to LLM knowledge via qa_draft
+        # rather than asking for clarification on answerable questions.
+        return "qa"
     return "retry"
 
 
@@ -221,14 +228,14 @@ def build_graph(checkpointer=None) -> StateGraph:
     # search -> search_validator
     g.add_edge("search", "search_validator")
 
-    # search_validator -> store | retry | clarify
+    # search_validator -> store | retry | qa (LLM fallback when budget exhausted)
     g.add_conditional_edges(
         "search_validator",
         _route_after_search_validation,
         {
             "store": "memory_store_knowledge",
             "retry": "search",
-            "clarify": "goal_evaluator",
+            "qa": "qa_draft",
         },
     )
 
@@ -264,4 +271,7 @@ def get_graph():
 
     conn = sqlite3.connect("data/checkpoints.db", check_same_thread=False)
     checkpointer = SqliteSaver(conn)
-    return build_graph(checkpointer=checkpointer)
+    compiled = build_graph(checkpointer=checkpointer)
+    # Raise the recursion limit from the default (25) to accommodate
+    # the action retry loop (up to MAX_ACTION_RETRIES=5) plus all other nodes.
+    return compiled.with_config(recursion_limit=100)
