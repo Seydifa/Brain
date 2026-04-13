@@ -28,7 +28,7 @@ from langgraph.graph.message import add_messages
 # ---------------------------------------------------------------------------
 # Tuning constants
 # ---------------------------------------------------------------------------
-MEMORY_SCORE_THRESHOLD = 0.50  # min cosine similarity to count as "known"
+MEMORY_SCORE_THRESHOLD = 0.65  # min cosine similarity to count as "known"
 MAX_SEARCH_RETRIES = 3  # max search + validation loops per turn
 MAX_QA_ATTEMPTS = 2  # max QA draft + orchestrator validation loops
 

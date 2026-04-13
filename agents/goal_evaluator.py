@@ -26,16 +26,15 @@ _llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.3)
 
 
 def _parse_response(text: str) -> tuple[str, list[str]]:
-    reason = ""
-    questions = []
-    for line in text.strip().split("\n"):
-        line = line.strip()
-        if line.upper().startswith("WHY:"):
-            reason = line[4:].strip()
-        else:
-            q = re.sub(r"^\d+[.\)\]]\s*", "", line).strip()
-            if len(q) > 5:
-                questions.append(q)
+    # Handle plain and markdown-bold variants: WHY:, **WHY:**, **WHY**:, etc.
+    why_match = re.search(r"\*{0,2}WHY\*{0,2}:\**\s*(.+)", text, re.IGNORECASE)
+    reason = why_match.group(1).strip().rstrip("*") if why_match else ""
+    # Only explicitly numbered lines count as questions (ignores preamble / WHY line)
+    questions = [
+        m.group(1).strip()
+        for m in re.finditer(r"^\s*\d+[.\)\]]\s*(.+)", text, re.MULTILINE)
+        if len(m.group(1).strip()) > 5
+    ]
     return reason, questions[:3]
 
 

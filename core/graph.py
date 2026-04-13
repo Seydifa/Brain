@@ -119,8 +119,10 @@ def build_graph(checkpointer=None) -> StateGraph:
     g.add_edge("memory_store_knowledge", "memory_update_coverage")
     g.add_edge("memory_update_coverage", "qa_draft")
 
-    # goal_evaluator -> END (returns clarification questions to user)
-    g.add_edge("goal_evaluator", END)
+    # goal_evaluator -> episode store -> END
+    # Finalise the in-progress placeholder even for clarification turns so
+    # subsequent turns can correctly classify as follow_up / elaboration.
+    g.add_edge("goal_evaluator", "memory_store_episode")
 
     # qa_draft -> orchestrator validation
     g.add_edge("qa_draft", "orchestrator_validate")
