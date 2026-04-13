@@ -1,0 +1,14 @@
+# secrets
+.env
+
+# runtime data (persisted on Drive in Colab)
+data/
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+
+# editor
+.vscode/
