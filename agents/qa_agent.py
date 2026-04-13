@@ -16,27 +16,13 @@ Two nodes:
 """
 
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage
 
 from core.state import BrainState
+from prompts import QA_SYSTEM
 
 
 _llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.3)
-
-_SYSTEM = SystemMessage(
-    content=(
-        "You are the brain's response agent. "
-        "Write a clear, well-structured answer to the user's goal using ONLY "
-        "the provided context.\n\n"
-        "Format rules:\n"
-        "  QUESTION   -> direct answer + numbered Sources section\n"
-        "  HOW-TO     -> numbered steps\n"
-        "  COMPARISON -> markdown table\n"
-        "  FOLLOW-UP  -> reference the previous answer, then extend it\n"
-        "Never invent facts not present in the context. "
-        "If context is insufficient, say so explicitly."
-    )
-)
 
 
 def _format_oriented_context(ctx: dict) -> str:
@@ -96,7 +82,7 @@ def qa_draft_node(state: BrainState) -> dict:
             "Address the feedback specifically in your revised answer."
         )
 
-    resp = _llm.invoke([_SYSTEM, HumanMessage(content=user_content)])
+    resp = _llm.invoke([QA_SYSTEM, HumanMessage(content=user_content)])
 
     return {
         "qa_draft": resp.content,

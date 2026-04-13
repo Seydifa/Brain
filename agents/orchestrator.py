@@ -14,26 +14,13 @@ Decision:
 
 import re
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import HumanMessage
 
 from core.state import BrainState, MAX_QA_ATTEMPTS
+from prompts import ORCHESTRATOR_SYSTEM
 
 
 _llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
-
-_SYSTEM = SystemMessage(
-    content=(
-        "You are a response quality evaluator. Score the draft answer on:\n"
-        "  1. Accuracy (1-10)     : does it stay within the provided knowledge?\n"
-        "  2. Completeness (1-10) : does it fully address the user's goal?\n"
-        "  3. Clarity (1-10)      : is it well-structured and readable?\n\n"
-        "Reply in EXACTLY this format (4 lines):\n"
-        "ACCURACY: <score>\n"
-        "COMPLETENESS: <score>\n"
-        "CLARITY: <score>\n"
-        "FEEDBACK: <one sentence - actionable improvement if rejecting, 'None' if approving>"
-    )
-)
 
 
 def _parse(text: str) -> tuple[int, str]:
@@ -72,7 +59,7 @@ def validate_qa_node(state: BrainState) -> dict:
 
     resp = _llm.invoke(
         [
-            _SYSTEM,
+            ORCHESTRATOR_SYSTEM,
             HumanMessage(
                 content=(
                     f"User goal: {state['goal']}\n\n"

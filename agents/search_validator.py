@@ -14,23 +14,13 @@ Decision:
 
 import re
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import HumanMessage
 
 from core.state import BrainState, MAX_SEARCH_RETRIES
+from prompts import SEARCH_VALIDATOR_SYSTEM
 
 
 _llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
-
-_SYSTEM = SystemMessage(
-    content=(
-        "You are a search result quality assessor.\n"
-        "Evaluate whether the search result adequately covers the user's goal.\n\n"
-        "Reply in EXACTLY this format (3 lines):\n"
-        "VALID: yes|no\n"
-        "SCORE: <1-10>\n"
-        "FEEDBACK: <one sentence - what's missing or why it's good>"
-    )
-)
 
 
 def validate_search_node(state: BrainState) -> dict:
@@ -49,7 +39,7 @@ def validate_search_node(state: BrainState) -> dict:
 
     resp = _llm.invoke(
         [
-            _SYSTEM,
+            SEARCH_VALIDATOR_SYSTEM,
             HumanMessage(
                 content=(f"User goal: {state['goal']}\n\nSearch result:\n{result_text}")
             ),

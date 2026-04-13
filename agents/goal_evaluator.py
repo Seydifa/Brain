@@ -17,23 +17,12 @@ goal (original goal + "User clarification: <answer>").
 import re
 
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import HumanMessage
 
 from core.state import BrainState
+from prompts import GOAL_EVALUATOR_SYSTEM
 
 _llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.3)
-
-_SYSTEM = SystemMessage(
-    content=(
-        "The search agent failed to find sufficient information for the user's goal "
-        "after multiple attempts.\n"
-        "Respond in this exact format (no extra text):\n\n"
-        "WHY: <one sentence explaining what is unclear or missing and why you cannot answer>\n"
-        "1. <clarifying question>\n"
-        "2. <clarifying question>\n"
-        "3. <clarifying question>"
-    )
-)
 
 
 def _parse_response(text: str) -> tuple[str, list[str]]:
@@ -61,7 +50,7 @@ def goal_evaluator_node(state: BrainState) -> dict:
     """
     resp = _llm.invoke(
         [
-            _SYSTEM,
+            GOAL_EVALUATOR_SYSTEM,
             HumanMessage(
                 content=(
                     f"User goal: {state['goal']}\n\n"

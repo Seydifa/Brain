@@ -32,7 +32,7 @@ oriented_context schema
 import re
 import json
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import HumanMessage
 
 from memory.episodes import (
     make_episode_id,
@@ -42,26 +42,10 @@ from memory.episodes import (
 )
 from memory.awareness import assess
 from memory.store import store
+from prompts import MEMORY_CLASSIFY_SYSTEM
 
 
 _llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
-
-_CLASSIFY_SYSTEM = SystemMessage(
-    content=(
-        "You are a conversation turn classifier.\n"
-        "Given the current user request and recent episode history, classify "
-        "the current turn's relationship to that history.\n\n"
-        "Turn types:\n"
-        "  new_topic     — entirely new subject, no link to history\n"
-        "  follow_up     — directly continues the previous response\n"
-        "  elaboration   — asks for more detail on a specific aspect\n"
-        "  clarification — user clarifies a misunderstanding\n"
-        "  correction    — user corrects the brain's previous answer\n\n"
-        "Reply in EXACTLY this format (2 lines):\n"
-        "TYPE: <type>\n"
-        "PARENT: <episode_id or null>"
-    )
-)
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +64,7 @@ def _classify_turn(goal: str, recent_episodes: list[dict]) -> tuple[str, str | N
 
     resp = _llm.invoke(
         [
-            _CLASSIFY_SYSTEM,
+            MEMORY_CLASSIFY_SYSTEM,
             HumanMessage(
                 content=(
                     f"Current request: {goal}\n\nRecent episode history:\n{history}"

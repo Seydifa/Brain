@@ -21,6 +21,7 @@ from langchain_core.messages import AIMessage
 from langgraph.prebuilt import create_react_agent
 
 from core.state import BrainState
+from prompts import SEARCH_REACT_SYSTEM
 
 
 _llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
@@ -75,7 +76,9 @@ def academic_search_tool(query: str) -> str:
         return f"Academic search error: {e}"
 
 
-_react_agent = create_react_agent(_llm, [web_search_tool, academic_search_tool])
+_react_agent = create_react_agent(
+    _llm, [web_search_tool, academic_search_tool], prompt=SEARCH_REACT_SYSTEM
+)
 
 
 # ---------------------------------------------------------------------------
