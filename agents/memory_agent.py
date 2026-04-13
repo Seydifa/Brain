@@ -21,6 +21,7 @@ Four nodes exposed to the LangGraph graph:
 """
 
 from langchain_core.messages import HumanMessage
+from langchain_core.runnables import RunnableConfig
 
 from core.state import BrainState
 from memory.agent import classify_and_orient, update_coverage, finalize_episode
@@ -32,15 +33,16 @@ from memory.store import store
 # ---------------------------------------------------------------------------
 
 
-def classify_node(state: BrainState) -> dict:
+def classify_node(state: BrainState, config: RunnableConfig) -> dict:
     """
     Entry node for every turn.
     Produces the oriented_context that all downstream agents will use.
     """
     goal = state["goal"]
     feedback = state.get("search_feedback", "")
+    thread_id = (config or {}).get("configurable", {}).get("thread_id", "")
 
-    oriented = classify_and_orient(goal, search_feedback=feedback)
+    oriented = classify_and_orient(goal, search_feedback=feedback, thread_id=thread_id)
 
     return {
         "oriented_context": oriented,
@@ -114,7 +116,7 @@ def update_coverage_node(state: BrainState) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def store_episode_node(state: BrainState) -> dict:
+def store_episode_node(state: BrainState, config: RunnableConfig) -> dict:
     """
     Finalize and persist the current turn as a completed episode.
     Called after qa_final, reads the full reasoning_trace from state.
@@ -124,6 +126,7 @@ def store_episode_node(state: BrainState) -> dict:
     parent_id = ctx.get("parent_episode_id")
     turn_type = ctx.get("turn_type", "new_topic")
     knowledge_conf = ctx.get("knowledge_confidence", 0.0)
+    thread_id = (config or {}).get("configurable", {}).get("thread_id", "")
 
     reasoning_trace = state.get("reasoning_trace", [])
     search_was_used = any("search" in s for s in reasoning_trace)
@@ -140,6 +143,7 @@ def store_episode_node(state: BrainState) -> dict:
             knowledge_conf=knowledge_conf,
             search_was_used=search_was_used,
             qa_retried=qa_retried,
+            thread_id=thread_id,
         )
 
     return {

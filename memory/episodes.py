@@ -44,9 +44,15 @@ def _conn() -> sqlite3.Connection:
             topic_cluster   TEXT,
             follow_up_of    TEXT,
             turn_type       TEXT,
-            knowledge_conf  REAL
+            knowledge_conf  REAL,
+            thread_id       TEXT DEFAULT ''
         )
     """)
+    # Migrate existing DBs that pre-date the thread_id column
+    try:
+        conn.execute("ALTER TABLE episodes ADD COLUMN thread_id TEXT DEFAULT ''")
+    except Exception:
+        pass  # column already exists
     conn.commit()
     return conn
 
@@ -68,6 +74,7 @@ def save_episode(
     follow_up_of: str | None = None,
     turn_type: str = "new_topic",
     knowledge_conf: float = 0.0,
+    thread_id: str = "",
 ) -> str:
     """
     Persist or update an episode.
@@ -82,8 +89,8 @@ def save_episode(
         INSERT INTO episodes
             (id, timestamp, user_request, chosen_response,
              reasoning_trace, flags, topic_cluster,
-             follow_up_of, turn_type, knowledge_conf)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             follow_up_of, turn_type, knowledge_conf, thread_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             chosen_response = excluded.chosen_response,
             reasoning_trace = excluded.reasoning_trace,
@@ -91,7 +98,8 @@ def save_episode(
             topic_cluster   = excluded.topic_cluster,
             follow_up_of    = excluded.follow_up_of,
             turn_type       = excluded.turn_type,
-            knowledge_conf  = excluded.knowledge_conf
+            knowledge_conf  = excluded.knowledge_conf,
+            thread_id       = excluded.thread_id
         """,
         (
             episode_id,
@@ -104,6 +112,7 @@ def save_episode(
             follow_up_of,
             turn_type,
             knowledge_conf,
+            thread_id,
         ),
     )
     conn.commit()
@@ -111,12 +120,22 @@ def save_episode(
     return episode_id
 
 
-def get_recent(n: int = 5) -> list[dict]:
-    """Fetch the N most recent episodes, newest first."""
+def get_recent(n: int = 5, thread_id: str = "") -> list[dict]:
+    """Fetch the N most recent episodes, newest first.
+
+    If *thread_id* is provided, only episodes from that conversation thread
+    are returned.  Pass an empty string (default) to get global recents.
+    """
     conn = _conn()
-    rows = conn.execute(
-        "SELECT * FROM episodes ORDER BY timestamp DESC LIMIT ?", (n,)
-    ).fetchall()
+    if thread_id:
+        rows = conn.execute(
+            "SELECT * FROM episodes WHERE thread_id = ? ORDER BY timestamp DESC LIMIT ?",
+            (thread_id, n),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM episodes ORDER BY timestamp DESC LIMIT ?", (n,)
+        ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
@@ -124,8 +143,6 @@ def get_recent(n: int = 5) -> list[dict]:
 def get_by_id(episode_id: str) -> dict | None:
     """Fetch a single episode by id. Returns None if not found."""
     conn = _conn()
-    row = conn.execute(
-        "SELECT * FROM episodes WHERE id = ?", (episode_id,)
-    ).fetchone()
+    row = conn.execute("SELECT * FROM episodes WHERE id = ?", (episode_id,)).fetchone()
     conn.close()
     return dict(row) if row else None

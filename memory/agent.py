@@ -53,7 +53,10 @@ _llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0)
 # ---------------------------------------------------------------------------
 
 
-def _classify_turn(goal: str, recent_episodes: list[dict]) -> tuple[str, str | None]:
+def _classify_turn(
+    goal: str,
+    recent_episodes: list[dict],
+) -> tuple[str, str | None]:
     """Classify the turn type and identify a parent episode if relevant."""
     if not recent_episodes:
         return "new_topic", None
@@ -115,19 +118,22 @@ def _build_conversation_thread(turn_type: str, parent_id: str | None) -> list[di
 # ---------------------------------------------------------------------------
 
 
-def classify_and_orient(goal: str, search_feedback: str = "") -> dict:
+def classify_and_orient(
+    goal: str, search_feedback: str = "", thread_id: str = ""
+) -> dict:
     """
     Build the oriented_context for the current turn.
 
     Steps:
-    1. Load recent episodes
+    1. Load recent episodes — filtered to the current thread so Q1 of a
+       fresh thread never inherits continuity from a different conversation
     2. Use LLM to classify this turn relative to history
     3. Assess knowledge coverage in the vector store
     4. Build conversation thread (only if this is a follow-up type turn)
     5. Register a placeholder episode (so the id exists for downstream reasoning)
     6. Return full oriented_context
     """
-    recent_episodes = get_recent(n=5)
+    recent_episodes = get_recent(n=5, thread_id=thread_id)
     turn_type, parent_id = _classify_turn(goal, recent_episodes)
 
     coverage_result = assess(goal, search_feedback=search_feedback)
@@ -140,6 +146,7 @@ def classify_and_orient(goal: str, search_feedback: str = "") -> dict:
         turn_type=turn_type,
         follow_up_of=parent_id,
         flags=["in_progress"],
+        thread_id=thread_id,
     )
 
     return {
@@ -181,6 +188,7 @@ def finalize_episode(
     knowledge_conf: float,
     search_was_used: bool = False,
     qa_retried: bool = False,
+    thread_id: str = "",
 ) -> None:
     """
     Update the in-progress episode placeholder with the final response,
@@ -208,4 +216,5 @@ def finalize_episode(
         follow_up_of=follow_up_of,
         turn_type=turn_type,
         knowledge_conf=knowledge_conf,
+        thread_id=thread_id,
     )
