@@ -36,7 +36,7 @@ _db = Chroma(
     collection_metadata={"hnsw:space": "cosine"},  # cosine → scores in [0, 1]
 )
 
-_llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+_llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0)
 
 
 def _describe(text: str) -> str:

@@ -45,7 +45,7 @@ from memory.store import store
 from prompts import MEMORY_CLASSIFY_SYSTEM
 
 
-_llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+_llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0)
 
 
 # ---------------------------------------------------------------------------

@@ -22,7 +22,7 @@ from langchain_core.messages import HumanMessage
 from core.state import BrainState
 from prompts import GOAL_EVALUATOR_SYSTEM
 
-_llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.3)
+_llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0.3)
 
 
 def _parse_response(text: str) -> tuple[str, list[str]]:

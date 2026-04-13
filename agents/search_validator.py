@@ -20,7 +20,7 @@ from core.state import BrainState, MAX_SEARCH_RETRIES
 from prompts import SEARCH_VALIDATOR_SYSTEM
 
 
-_llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+_llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0)
 
 
 def validate_search_node(state: BrainState) -> dict:

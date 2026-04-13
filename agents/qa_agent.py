@@ -22,7 +22,7 @@ from core.state import BrainState
 from prompts import QA_SYSTEM
 
 
-_llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.3)
+_llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0.3)
 
 
 def _format_oriented_context(ctx: dict) -> str:
